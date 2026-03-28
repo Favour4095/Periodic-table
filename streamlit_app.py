@@ -2,18 +2,10 @@ import streamlit as st
 import random
 import time
 
-# --- CONFIG & STYLES ---
-st.set_page_config(page_title="ChemMaster: Periodic Quest", page_icon="🧪", layout="wide")
+# --- CONFIG ---
+st.set_page_config(page_title="ChemMaster Pro", page_icon="🧪", layout="wide")
 
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #0e1117; color: white; border: 1px solid #4facfe; }
-    .stButton>button:hover { background-image: linear-gradient(to right, #4facfe 0%, #00f2fe 100%); color: black; }
-    .stat-box { padding: 20px; border-radius: 10px; background-color: #f0f2f6; border-left: 5px solid #4facfe; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- THE DATA (First 20 Elements) ---
+# --- DATASET (First 20 Elements) ---
 elements = [
     {"n": 1, "s": "H", "name": "Hydrogen", "group": 1, "period": 1, "class": "Non-metal", "config": "1"},
     {"n": 2, "s": "He", "name": "Helium", "group": 18, "period": 1, "class": "Noble Gas", "config": "2"},
@@ -39,103 +31,92 @@ elements = [
 
 # --- SESSION STATE ---
 if 'score' not in st.session_state: st.session_state.score = 0
+if 'q_count' not in st.session_state: st.session_state.q_count = 0
 if 'current_q' not in st.session_state: st.session_state.current_q = random.choice(elements)
-if 'mode' not in st.session_state: st.session_state.mode = "Learning"
 
 def next_q():
     st.session_state.current_q = random.choice(elements)
+    st.session_state.q_count += 1
 
-# --- SIDEBAR ---
+# --- SIDEBAR STATS ---
 with st.sidebar:
-    st.header("🎮 Player Profile")
-    st.metric("Total Electrons (Score)", st.session_state.score)
-    st.write(f"**Rank:** {'Alchemist' if st.session_state.score < 100 else 'Professor'}")
-    st.divider()
-    if st.button("Reset Lab Progress"):
+    st.header("📊 Progress Tracker")
+    st.metric("Questions Solved", st.session_state.q_count)
+    st.metric("Electrons (Score)", st.session_state.score)
+    
+    # Target Progress Bars
+    if st.session_state.q_count < 35:
+        st.write("Next Goal: Level 2 Unlock")
+        st.progress(st.session_state.q_count / 35)
+    elif st.session_state.q_count < 70:
+        st.write("Next Goal: Level 3 Unlock")
+        st.progress((st.session_state.q_count - 35) / 35)
+    
+    if st.sidebar.button("Reset Game"):
         st.session_state.score = 0
+        st.session_state.q_count = 0
         st.rerun()
 
-# --- MAIN APP ---
+# --- MAIN GAME LOGIC ---
 st.title("🧪 ChemMaster: The Periodic Quest")
 
-tab1, tab2 = st.tabs(["📖 Learning Mode (Levels 1-3)", "⚡ Time Attack (Recall)"])
+q = st.session_state.current_q
 
-# --- TAB 1: LEVELS ---
-with tab1:
-    l1, l2, l3 = st.columns(3)
-    q = st.session_state.current_q
+# LEVEL 1: 0 - 34 Questions (Focus on Names/Symbols)
+if st.session_state.q_count < 35:
+    st.header("Level 1")
+    st.info(f"Question {st.session_state.q_count + 1} of 35 for this stage.")
     
-    # LEVEL 1: KNOWLEDGE (Symbols & Numbers)
-    with l1:
-        st.subheader("Level 1: Knowledge")
-        st.write(f"Identify the **Atomic Number** of **{q['name']}** ({q['s']})")
-        ans1 = st.number_input("Enter Z:", min_value=0, key="l1")
-        if st.button("Check Knowledge"):
-            if ans1 == q['n']:
-                st.success("Correct! +10 Electrons")
-                st.session_state.score += 10
-                next_q(); st.rerun()
-            else:
-                st.error(f"Wrong! {q['name']} has {q['n']} protons.")
-
-    # LEVEL 2: UNDERSTANDING (Groups & Periods)
-    with l2:
-        st.subheader("Level 2: Understanding")
-        if st.session_state.score < 50:
-            st.lock("Unlock at 50 Electrons")
-        else:
-            st.write(f"In which **Period** is **{q['name']}** found?")
-            ans2 = st.selectbox("Select Period:", [1, 2, 3, 4], key="l2")
-            if st.button("Check Understanding"):
-                if ans2 == q['period']:
-                    st.success("Brilliant! +20 Electrons")
-                    st.session_state.score += 20
-                    next_q(); st.rerun()
-                else:
-                    st.error(f"Incorrect. Period {q['period']} matches its {len(q['config'].split(','))} electron shells.")
-
-    # LEVEL 3: APPLICATION (Patterns)
-    with l3:
-        st.subheader("Level 3: Application")
-        if st.session_state.score < 150:
-            st.lock("Unlock at 150 Electrons")
-        else:
-            st.write(f"**Electron Visual:** `{q['config']}`")
-            st.caption("Identify the classification based on the valence electrons.")
-            ans3 = st.radio("Class:", ["Alkali Metal", "Noble Gas", "Halogen", "Non-metal"], key="l3")
-            if st.button("Apply Knowledge"):
-                if ans3 == q['class']:
-                    st.success("Masterful! +50 Electrons")
-                    st.session_state.score += 50
-                    next_q(); st.rerun()
-                else:
-                    st.error(f"Pattern mismatch. {q['name']} is a {q['class']}.")
-
-# --- TAB 2: TIME ATTACK ---
-with tab2:
-    st.subheader("⚡ Quick Recall Challenge")
-    if 'timer_start' not in st.session_state:
-        if st.button("🚀 START 60s CHALLENGE"):
-            st.session_state.timer_start = time.time()
+    st.write(f"### Identify the **Atomic Number** of **{q['name']}** ({q['s']})")
+    ans1 = st.number_input("Enter Z:", min_value=0, key="l1_input")
+    
+    if st.button("Check Answer"):
+        if ans1 == q['n']:
+            st.success(f"Correct! {q['name']} is element #{q['n']}. +10 XP")
+            st.session_state.score += 10
+            next_q()
             st.rerun()
-    else:
-        elapsed = time.time() - st.session_state.timer_start
-        remaining = max(0, 60 - int(elapsed))
-        st.progress(remaining / 60)
-        st.write(f"⏳ Time Remaining: **{remaining} seconds**")
-        
-        if remaining <= 0:
-            st.warning(f"Time is up! Final score: {st.session_state.score}")
-            if st.button("Restart"): 
-                del st.session_state.timer_start
-                st.rerun()
         else:
-            t_q = st.session_state.current_q
-            ans_t = st.text_input(f"Quick! What is the Symbol for **{t_q['name']}**?", key="ta_input")
-            if st.button("Zap!"):
-                if ans_t.strip().upper() == t_q['s']:
-                    st.session_state.score += 5
-                    next_q(); st.rerun()
-                else:
-                    st.error("Wrong! -2 Seconds penalty")
-                    st.session_state.timer_start -= 2
+            st.error(f"Incorrect. {q['name']} has {q['n']} protons. Try to remember its position!")
+
+# LEVEL 2: 35 - 69 Questions (Focus on Group/Period)
+elif 35 <= st.session_state.q_count < 70:
+    st.header("Level 2")
+    st.info(f"Question {st.session_state.q_count - 34} of 35 for this stage.")
+    
+    st.write(f"### Which **Period** does **{q['name']}** ({q['s']}) belong to?")
+    ans2 = st.selectbox("Select Period:", [1, 2, 3, 4], key="l2_input")
+    
+    if st.button("Verify Period"):
+        if ans2 == q['period']:
+            st.success(f"Brilliant! It has {len(q['config'].split(','))} electron shells. +20 XP")
+            st.session_state.score += 20
+            next_q()
+            st.rerun()
+        else:
+            st.error(f"Wrong. {q['name']} is in Period {q['period']}. Count the shells: {q['config']}")
+
+# LEVEL 3: 70+ Questions (Application & Patterns)
+else:
+    st.header("Level 3: Master Class")
+    st.info(f"Question {st.session_state.q_count - 69} of 35 for this stage.")
+    
+    st.write(f"### Electron Visual: `{q['config']}`")
+    st.write(f"Identify the **Classification** of this element (**{q['s']}**).")
+    
+    ans3 = st.radio("Classification:", ["Alkali Metal", "Noble Gas", "Halogen", "Non-metal", "Alkaline Earth", "Metalloid"], key="l3_input")
+    
+    if st.button("Submit Mastery"):
+        if ans3 == q['class']:
+            st.success(f"Correct! You identified the {q['class']} pattern. +50 XP")
+            st.session_state.score += 50
+            next_q()
+            st.rerun()
+        else:
+            st.error(f"Incorrect. Based on the valence electrons ({q['config'].split(',')[-1]}), it is a {q['class']}.")
+
+# Footer pattern guide
+with st.expander("🔬 Lab Reference Manual"):
+    st.write("- **Period:** Number of electron shells.")
+    st.write("- **Group:** Determined by outer (valence) electrons.")
+    st.write("- **Atomic Number:** Number of protons in the nucleus.")
