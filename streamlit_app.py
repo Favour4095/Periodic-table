@@ -3,29 +3,18 @@ import random
 import time
 import pandas as pd
 
-# --- CONFIG & NEON THEME ---
-st.set_page_config(page_title="ChemMaster: Neon Lab", page_icon="🧪", layout="wide")
+# --- 1. APP SETUP ---
+st.set_page_config(page_title="First 20 Elements Master", page_icon="🧪")
 
+# Custom Styling to make it look like a Game Interface
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
-    div.stButton > button:first-child {
-        background-color: #00f2fe; color: #0e1117; border-radius: 10px;
-        border: none; font-weight: bold; transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        box-shadow: 0 0 15px #00f2fe; transform: scale(1.02);
-    }
-    .stat-card {
-        background: #1c212d; padding: 20px; border-radius: 15px;
-        border-bottom: 4px solid #4facfe; text-align: center;
-    }
-    .result-pass { color: #00ff88; font-weight: bold; font-size: 20px; }
-    .result-fail { color: #ff4b4b; font-weight: bold; font-size: 20px; }
+    .stProgress > div > div > div > div { background-color: #4facfe; }
+    .metric-container { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #4facfe; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ENHANCED DATASET ---
+# --- 2. THE DATA (FIRST 20 ELEMENTS) ---
 elements = [
     {"n": 1, "s": "H", "name": "Hydrogen", "mass": 1, "group": 1, "period": 1, "class": "Non-metal", "config": "1"},
     {"n": 2, "s": "He", "name": "Helium", "mass": 4, "group": 18, "period": 1, "class": "Noble Gas", "config": "2"},
@@ -49,135 +38,118 @@ elements = [
     {"n": 20, "s": "Ca", "name": "Calcium", "mass": 40, "group": 2, "period": 4, "class": "Alkaline Earth", "config": "2, 8, 8, 2"},
 ]
 
-# --- SESSION STATE ---
+# --- 3. GAME STATE MANAGEMENT ---
 if 'xp' not in st.session_state: st.session_state.xp = 0
 if 'level' not in st.session_state: st.session_state.level = 1
-if 'history' not in st.session_state: st.session_state.history = []
 if 'q_idx' not in st.session_state: st.session_state.q_idx = 0
+if 'history' not in st.session_state: st.session_state.history = []
 if 'show_results' not in st.session_state: st.session_state.show_results = False
 
-def init_round():
+def start_new_round():
     round_qs = []
     for _ in range(10):
         el = random.choice(elements)
-        if st.session_state.level == 1: q_type = random.choice(['n', 's', 'name'])
-        elif st.session_state.level == 2: q_type = random.choice(['period', 'group', 'mass'])
-        else: q_type = random.choice(['config', 'class'])
-        round_qs.append({'element': el, 'type': q_type})
+        # Level-specific question types
+        if st.session_state.level == 1:
+            q_type = random.choice(['symbol', 'n', 'name'])
+        elif st.session_state.level == 2:
+            q_type = random.choice(['period', 'group', 'mass'])
+        else:
+            q_type = random.choice(['config', 'class'])
+        round_qs.append({'el': el, 'type': q_type})
     st.session_state.round_qs = round_qs
 
-if 'round_qs' not in st.session_state: init_round()
+if 'round_qs' not in st.session_state:
+    start_new_round()
 
-# --- RANKING SYSTEM ---
-def get_rank(xp):
-    if xp < 100: return "Novice Alchemist 🧪"
-    if xp < 300: return "Junior Chemist ⚗️"
-    if xp < 600: return "Lab Specialist 🧬"
-    return "Elemental Grandmaster 👑"
+# --- 4. GAME UI ---
+st.title("🧪 Chemistry Lab Challenge")
+st.write("Master the first 20 elements to earn your Chemist Certification!")
 
-# --- GAME INTERFACE ---
-st.title("⚡ CHEM-MASTER: NEON QUEST")
-
-# Top HUD
-hud_col1, hud_col2, hud_col3 = st.columns(3)
-with hud_col1:
-    st.markdown(f"<div class='stat-card'><h3>LEVEL</h3><h1>{st.session_state.level}</h1></div>", unsafe_allow_html=True)
-with hud_col2:
-    st.markdown(f"<div class='stat-card'><h3>XP POINTS</h3><h1>{st.session_state.xp}</h1></div>", unsafe_allow_html=True)
-with hud_col3:
-    st.markdown(f"<div class='stat-card'><h3>RANK</h3><p>{get_rank(st.session_state.xp)}</p></div>", unsafe_allow_html=True)
-
-st.write("---")
+# Dashboard
+c1, c2, c3 = st.columns(3)
+c1.metric("Current Level", st.session_state.level)
+c2.metric("Total XP", st.session_state.xp)
+c3.write(f"**Status:** {'Beginner' if st.session_state.xp < 100 else 'Expert'}")
 
 if not st.session_state.show_results:
-    curr_q = st.session_state.round_qs[st.session_state.q_idx]
-    el = curr_q['element']
-    qt = curr_q['type']
+    curr = st.session_state.round_qs[st.session_state.q_idx]
+    el = curr['el']
+    t = curr['type']
     
-    # Question mapping
-    data = {
-        'n': (f"Identify Atomic Number: {el['name']}", el['n'], 'n'),
-        's': (f"What is the Symbol for {el['name']}?", el['s'], 's'),
-        'name': (f"Which element is #{el['n']}?", el['name'], 'name'),
-        'period': (f"Find Period: {el['name']}", el['period'], 'period'),
-        'group': (f"Find Group: {el['name']}", el['group'], 'group'),
-        'mass': (f"Atomic Mass of {el['name']}?", el['mass'], 'mass'),
-        'config': (f"Who has configuration {el['config']}?", el['name'], 'name'),
-        'class': (f"Classification: {el['name']}?", el['class'], 'class')
-    }
-    prompt, correct, key = data[qt]
+    # Question Setup
+    if t == 'symbol': prompt, correct, key = f"What is the Symbol for {el['name']}?", el['s'], 's'
+    elif t == 'n': prompt, correct, key = f"What is the Atomic Number of {el['name']}?", el['n'], 'n'
+    elif t == 'name': prompt, correct, key = f"Which element has Atomic Number {el['n']}?", el['name'], 'name'
+    elif t == 'period': prompt, correct, key = f"What Period is {el['name']} in?", el['period'], 'period'
+    elif t == 'group': prompt, correct, key = f"What Group is {el['name']} in?", el['group'], 'group'
+    elif t == 'mass': prompt, correct, key = f"What is the Atomic Mass of {el['name']}?", el['mass'], 'mass'
+    elif t == 'config': prompt, correct, key = f"Identify the element with configuration {el['config']}:", el['name'], 'name'
+    elif t == 'class': prompt, correct, key = f"What is the classification of {el['name']}?", el['class'], 'class'
 
-    # Generate Options
-    if 'opts' not in st.session_state:
+    # Generate Multiple Choice Options
+    if 'current_options' not in st.session_state:
         opts = {correct}
         while len(opts) < 4:
             opts.add(random.choice(elements)[key])
-        st.session_state.opts = list(opts)
-        random.shuffle(st.session_state.opts)
-        st.session_state.start_time = time.time()
+        st.session_state.current_options = list(opts)
+        random.shuffle(st.session_state.current_options)
 
-    # Progress Bar
-    st.write(f"Quest Progress: {st.session_state.q_idx + 1} / 10")
+    # Progress Bar for the 10 questions
+    st.write(f"Question {st.session_state.q_idx + 1} of 10")
     st.progress((st.session_state.q_idx + 1) / 10)
 
-    st.markdown(f"## {prompt}")
+    st.subheader(prompt)
     
-    # Choice Grid
-    cols = st.columns(2)
-    for idx, opt in enumerate(st.session_state.opts):
-        with cols[idx % 2]:
-            if st.button(f"⚛️ {opt}", key=f"btn_{idx}"):
-                duration = time.time() - st.session_state.start_time
-                is_correct = (opt == correct)
-                
-                # Dynamic Feedback
-                if is_correct:
-                    bonus = 5 if duration < 4 else 0
-                    st.session_state.xp += (10 + bonus)
-                    st.toast(f"EXCELLENT! +{10+bonus} XP", icon="🔥")
-                else:
-                    st.toast("REACTION FAILED!", icon="❌")
-                
-                st.session_state.history.append({
-                    'Quest': prompt,
-                    'You': opt,
-                    'Target': correct,
-                    'Result': "✅" if is_correct else "❌"
-                })
-                
-                st.session_state.q_idx += 1
-                del st.session_state.opts
-                if st.session_state.q_idx >= 10: st.session_state.show_results = True
-                st.rerun()
+    # Choice Buttons
+    for opt in st.session_state.current_options:
+        if st.button(str(opt), use_container_width=True):
+            is_right = (opt == correct)
+            if is_right:
+                st.session_state.xp += 10
+                st.toast("Correct!", icon="✅")
+            else:
+                st.toast("Incorrect", icon="❌")
+            
+            # Save to review history
+            st.session_state.history.append({
+                "Question": prompt,
+                "Your Answer": opt,
+                "Correct Answer": correct,
+                "Result": "✅" if is_right else "❌"
+            })
+            
+            # Move forward
+            st.session_state.q_idx += 1
+            del st.session_state.current_options
+            
+            if st.session_state.q_idx >= 10:
+                st.session_state.show_results = True
+            st.rerun()
 
 else:
-    # --- END SCREEN ---
-    st.header("📊 MISSION DEBRIEF")
-    correct_count = sum(1 for x in st.session_state.history if x['Result'] == "✅")
-    
-    if correct_count >= 7:
-        st.balloons()
-        st.markdown(f"<p class='result-pass'>MISSION SUCCESS: {correct_count}/10 COMPLETED</p>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<p class='result-fail'>MISSION FAILED: {correct_count}/10. 70% accuracy required.</p>", unsafe_allow_html=True)
-
-    # Review Table
+    # --- 5. RESULTS & REVIEW PAGE ---
+    st.header("🔬 Lab Results Table")
     df = pd.DataFrame(st.session_state.history)
-    st.table(df)
+    st.table(df) # This shows exactly what they got right and wrong
+    
+    score = sum(1 for x in st.session_state.history if x['Result'] == "✅")
+    st.write(f"### Final Score: {score} / 10")
 
-    # Next Steps
-    if correct_count >= 7:
-        if st.button("🚀 UNLOCK NEXT LEVEL"):
+    if score >= 7:
+        st.success("Great job! You passed the requirements for this level.")
+        if st.button("Proceed to Next Level"):
             st.session_state.level += 1
             st.session_state.q_idx = 0
             st.session_state.history = []
             st.session_state.show_results = False
-            init_round()
+            start_new_round()
             st.rerun()
     else:
-        if st.button("🔄 RE-RUN SIMULATION"):
+        st.error("You need at least 7 correct answers to pass. Study the table above and try again!")
+        if st.button("Retry Level"):
             st.session_state.q_idx = 0
             st.session_state.history = []
             st.session_state.show_results = False
-            init_round()
+            start_new_round()
             st.rerun()
