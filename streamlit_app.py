@@ -3,9 +3,19 @@ import random
 import time
 
 # --- CONFIG ---
-st.set_page_config(page_title="ChemMaster Pro", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="ChemMaster Pro", page_icon="🧪", layout="centered")
 
-# --- DATASET (First 20 Elements) ---
+# --- STYLING ---
+st.markdown("""
+    <style>
+    .stButton>button { border-radius: 10px; height: 3em; font-weight: bold; }
+    .streak-box { background: #ff4b4b; color: white; padding: 10px; border-radius: 15px; text-align: center; }
+    .feedback-correct { color: #28a745; font-weight: bold; }
+    .feedback-wrong { color: #dc3545; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- DATASET ---
 elements = [
     {"n": 1, "s": "H", "name": "Hydrogen", "group": 1, "period": 1, "class": "Non-metal", "config": "1"},
     {"n": 2, "s": "He", "name": "Helium", "group": 18, "period": 1, "class": "Noble Gas", "config": "2"},
@@ -32,91 +42,107 @@ elements = [
 # --- SESSION STATE ---
 if 'score' not in st.session_state: st.session_state.score = 0
 if 'q_count' not in st.session_state: st.session_state.q_count = 0
-if 'current_q' not in st.session_state: st.session_state.current_q = random.choice(elements)
-
-def next_q():
+if 'streak' not in st.session_state: st.session_state.streak = 0
+if 'level' not in st.session_state: st.session_state.level = 1
+if 'correct_in_stage' not in st.session_state: st.session_state.correct_in_stage = 0
+if 'options' not in st.session_state: st.session_state.options = []
+if 'current_q' not in st.session_state: 
     st.session_state.current_q = random.choice(elements)
-    st.session_state.q_count += 1
+    st.session_state.options = [] # Trigger first shuffle
 
-# --- SIDEBAR STATS ---
-with st.sidebar:
-    st.header("📊 Progress Tracker")
-    st.metric("Questions Solved", st.session_state.q_count)
-    st.metric("Electrons (Score)", st.session_state.score)
-    
-    # Target Progress Bars
-    if st.session_state.q_count < 35:
-        st.write("Next Goal: Level 2 Unlock")
-        st.progress(st.session_state.q_count / 35)
-    elif st.session_state.q_count < 70:
-        st.write("Next Goal: Level 3 Unlock")
-        st.progress((st.session_state.q_count - 35) / 35)
-    
-    if st.sidebar.button("Reset Game"):
-        st.session_state.score = 0
-        st.session_state.q_count = 0
-        st.rerun()
+def generate_options(correct_val, key_name, all_elements):
+    # Create 4 unique options
+    opts = {correct_val}
+    while len(opts) < 4:
+        wrong_el = random.choice(all_elements)
+        opts.add(wrong_el[key_name])
+    opts_list = list(opts)
+    random.shuffle(opts_list)
+    return opts_list
 
-# --- MAIN GAME LOGIC ---
-st.title("🧪 ChemMaster: The Periodic Quest")
+# --- HEADER & STATS ---
+st.title("🧪 ChemMaster: The Quest")
 
+col_a, col_b, col_c = st.columns(3)
+col_a.metric("Level", st.session_state.level)
+col_b.metric("Electrons", st.session_state.score)
+col_c.write(f"🔥 Streak: **{st.session_state.streak}**")
+
+# --- GAME LOGIC ---
 q = st.session_state.current_q
 
-# LEVEL 1: 0 - 34 Questions (Focus on Names/Symbols)
-if st.session_state.q_count < 35:
-    st.header("Level 1")
-    st.info(f"Question {st.session_state.q_count + 1} of 35 for this stage.")
-    
-    st.write(f"### Identify the **Atomic Number** of **{q['name']}** ({q['s']})")
-    ans1 = st.number_input("Enter Z:", min_value=0, key="l1_input")
-    
-    if st.button("Check Answer"):
-        if ans1 == q['n']:
-            st.success(f"Correct! {q['name']} is element #{q['n']}. +10 XP")
-            st.session_state.score += 10
-            next_q()
-            st.rerun()
-        else:
-            st.error(f"Incorrect. {q['name']} has {q['n']} protons. Try to remember its position!")
+# Initialize options for the current question if empty
+if not st.session_state.options:
+    if st.session_state.level == 1:
+        st.session_state.options = generate_options(q['n'], 'n', elements)
+    elif st.session_state.level == 2:
+        st.session_state.options = [1, 2, 3, 4] # Periods are fixed
+    else:
+        st.session_state.options = ["Alkali Metal", "Noble Gas", "Halogen", "Non-metal", "Alkaline Earth", "Metalloid"]
 
-# LEVEL 2: 35 - 69 Questions (Focus on Group/Period)
-elif 35 <= st.session_state.q_count < 70:
-    st.header("Level 2")
-    st.info(f"Question {st.session_state.q_count - 34} of 35 for this stage.")
-    
+# Display Question
+st.divider()
+st.subheader(f"Question {st.session_state.q_count + 1} of 35")
+
+if st.session_state.level == 1:
+    st.write(f"### What is the **Atomic Number** of **{q['name']}** ({q['s']})?")
+    correct_answer = q['n']
+elif st.session_state.level == 2:
     st.write(f"### Which **Period** does **{q['name']}** ({q['s']}) belong to?")
-    ans2 = st.selectbox("Select Period:", [1, 2, 3, 4], key="l2_input")
-    
-    if st.button("Verify Period"):
-        if ans2 == q['period']:
-            st.success(f"Brilliant! It has {len(q['config'].split(','))} electron shells. +20 XP")
-            st.session_state.score += 20
-            next_q()
-            st.rerun()
-        else:
-            st.error(f"Wrong. {q['name']} is in Period {q['period']}. Count the shells: {q['config']}")
-
-# LEVEL 3: 70+ Questions (Application & Patterns)
+    correct_answer = q['period']
 else:
-    st.header("Level 3: Master Class")
-    st.info(f"Question {st.session_state.q_count - 69} of 35 for this stage.")
-    
-    st.write(f"### Electron Visual: `{q['config']}`")
-    st.write(f"Identify the **Classification** of this element (**{q['s']}**).")
-    
-    ans3 = st.radio("Classification:", ["Alkali Metal", "Noble Gas", "Halogen", "Non-metal", "Alkaline Earth", "Metalloid"], key="l3_input")
-    
-    if st.button("Submit Mastery"):
-        if ans3 == q['class']:
-            st.success(f"Correct! You identified the {q['class']} pattern. +50 XP")
-            st.session_state.score += 50
-            next_q()
-            st.rerun()
-        else:
-            st.error(f"Incorrect. Based on the valence electrons ({q['config'].split(',')[-1]}), it is a {q['class']}.")
+    st.write(f"### Analyze: `{q['config']}`")
+    st.write(f"What is the **Classification** of **{q['name']}**?")
+    correct_answer = q['class']
 
-# Footer pattern guide
-with st.expander("🔬 Lab Reference Manual"):
-    st.write("- **Period:** Number of electron shells.")
-    st.write("- **Group:** Determined by outer (valence) electrons.")
-    st.write("- **Atomic Number:** Number of protons in the nucleus.")
+# Multiple Choice Buttons
+cols = st.columns(2)
+for idx, opt in enumerate(st.session_state.options):
+    with cols[idx % 2]:
+        if st.button(str(opt), key=f"btn_{idx}"):
+            if opt == correct_answer:
+                st.toast("Correct! +10 XP", icon="✅")
+                st.session_state.score += 10
+                st.session_state.streak += 1
+                st.session_state.correct_in_stage += 1
+            else:
+                st.error(f"Wrong! The correct answer was **{correct_answer}**.")
+                st.info(f"Refresher: {q['name']} ({q['s']}) has Atomic Number {q['n']}, Period {q['period']}, and is a {q['class']}.")
+                st.session_state.streak = 0
+                time.sleep(2) # Give them time to read the feedback
+            
+            # Move to next question
+            st.session_state.q_count += 1
+            st.session_state.current_q = random.choice(elements)
+            st.session_state.options = [] # Clear options for next shuffle
+            st.rerun()
+
+# --- LEVEL PROGRESSION CHECK ---
+if st.session_state.q_count >= 35:
+    pass_mark = 35 * 0.70 # 70% to pass
+    if st.session_state.correct_in_stage >= pass_mark:
+        st.balloons()
+        st.success(f"🎊 Level Complete! You got {st.session_state.correct_in_stage}/35 correct. Level {st.session_state.level + 1} Unlocked!")
+        st.session_state.level += 1
+        st.session_state.q_count = 0
+        st.session_state.correct_in_stage = 0
+    else:
+        st.warning(f"Level Failed. You got {st.session_state.correct_in_stage}/35. You need 25 correct to pass. Restarting Level...")
+        st.session_state.q_count = 0
+        st.session_state.correct_in_stage = 0
+    
+    if st.button("Continue"):
+        st.rerun()
+
+# --- REWARDS / BADGES ---
+with st.sidebar:
+    st.header("🏆 Achievements")
+    if st.session_state.streak >= 5: st.write("🎖️ **Hot Streak!** (5 in a row)")
+    if st.session_state.level > 1: st.write("🥈 **Science Apprentice**")
+    if st.session_state.level > 2: st.write("🥇 **Master Chemist**")
+    
+    st.divider()
+    if st.button("Reset Entire Game"):
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        st.rerun()
